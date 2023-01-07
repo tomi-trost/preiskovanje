@@ -48,7 +48,7 @@ class Graph:
             self.possible_future_paths: list[tuple] = [(p, r) for r in range(self.graph.dimensions['p']) for p in range(self.graph.dimensions['p'])]
             #random.shuffle(self.possible_future_paths)
             self.past = past_state
-            self.future = {}
+            self.future = []
         
 
         def valid_move(self, p: int, r: int) -> bool:
@@ -110,7 +110,7 @@ class Graph:
             # 1st argument: next (future) Nodes
             # 2nd argument: make a reference to parent(this) node
             # 3rd argument: pass existing dimensions(DNA hehe)
-            self.future = {(p, r): self.graph.Node(self.graph, self.move(p, r), {(p, r): self}) for p, r in legal_future_paths}
+            self.future = [self.graph.Node(self.graph, self.move(p, r), {(p, r): self}) for p, r in legal_future_paths]
 
 
         def future_step_dfs(self):
@@ -135,7 +135,7 @@ class Graph:
             print(self.state,'\n')
             if (self.future == None): return
 
-            for possible_future in self.future.values():
+            for possible_future in self.future:
                 possible_future.travel()
 
 
@@ -145,7 +145,7 @@ class Graph:
             if future_depth == 0: return
 
             if self.future == None: self.future_step()
-            for possible_future in self.future.values():
+            for possible_future in self.future:
                 possible_future.future_reveal(future_depth-1)
 
 
@@ -160,7 +160,7 @@ class Graph:
             for move in self.future_step_dfs():
                 p, r = move
                 node = self.graph.Node(self.graph, self.move(p, r), {(p, r): self})
-                self.future[move] = node
+                self.future.append(node)
                 value = node.DFS(max_depth-1)
                 if value: return value
             
@@ -186,7 +186,7 @@ class Graph:
             while bool(queue):
                 node: 'Graph.Node' = queue.pop()
                 node.future_step_bfs()
-                next_level_queue.extend(node.future.values())
+                next_level_queue.extend(node.future)
 
             for future in next_level_queue:
                 if np.array_equal(future.state, self.graph.finish):
