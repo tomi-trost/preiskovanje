@@ -1,5 +1,6 @@
 import numpy as np
 import math
+import random
 import traceback
 import sys
 
@@ -19,6 +20,9 @@ class Graph:
     def print(self):
         self.start.travel()
 
+    def clear_visited(self):
+        self.visited: list[np.ndarray] = []
+
     def get_discovered(self) -> int:
         return len(self.visited)
 
@@ -28,6 +32,13 @@ class Graph:
     def depth_first_search(self):
         return self.start.DFS()
 
+    def breadth_first_search(self):
+        return self.start.BFS()
+
+    def iterative_deepening_search(self):
+        return self.start.IDS()
+
+
     class Node:
     
         def __init__(self, graph: 'Graph', state: np.ndarray, past_state: dict[tuple:any]):
@@ -35,9 +46,10 @@ class Graph:
             self.graph.visited.append(state)
             self.state: np.ndarray = state
             self.possible_future_paths: list[tuple] = [(p, r) for r in range(self.graph.dimensions['p']) for p in range(self.graph.dimensions['p'])]
+            #random.shuffle(self.possible_future_paths)
             self.past = past_state
-            self.future = None
-        # commit
+            self.future = {}
+        
 
         def valid_move(self, p: int, r: int) -> bool:
             if p >= self.graph.dimensions['p'] or p < 0 or r >= self.graph.dimensions['p'] or r < 0:
@@ -79,7 +91,7 @@ class Graph:
 
 
         # The BREADTH part of BFS
-        def future_step(self):
+        def future_step_bfs(self):
 
             # remove moves that create a ciclic connection OR
             # performe a move on an empty box OR 
@@ -94,13 +106,28 @@ class Graph:
             ]
 
             
-
-            # print(legal_future_paths)
             # create future scenarios created by all the legal moves 
             # 1st argument: next (future) Nodes
             # 2nd argument: make a reference to parent(this) node
             # 3rd argument: pass existing dimensions(DNA hehe)
             self.future = {(p, r): self.graph.Node(self.graph, self.move(p, r), {(p, r): self}) for p, r in legal_future_paths}
+
+
+        def future_step_dfs(self):
+
+            # remove moves that create a ciclic connection OR
+            # performe a move on an empty box OR 
+            # form a connection to the past OR 
+            # future state has already been visited
+            legal_future_paths: list[tuple] = [
+                (p, r) for p, r in self.possible_future_paths
+                if  self.valid_move(p, r) and
+                    p!=r and
+                    not all(x == ' ' for x in self.state[:, p]) and any([x == ' ' for x in self.state[:, r]]) and
+                    all([not np.array_equal(self.move(p, r), visited) for visited in self.graph.visited])
+            ]
+
+            return legal_future_paths
 
 
         def travel(self):
@@ -122,47 +149,59 @@ class Graph:
                 possible_future.future_reveal(future_depth-1)
 
 
-        def DFS(self, max_depth = 1000000):
+        def DFS(self, max_depth = 10000):
 
-            if max_depth == 0: return ["zmanjka globine"]
+            if max_depth == 0: 
+                return
 
             if np.array_equal(self.state, self.graph.finish):
                 return self.reconstruct_path()
-            
-            if self.future == None: self.future_step()
-            for possible_future in self.future.values():
-                value = possible_future.DFS(max_depth-1)
+
+            for move in self.future_step_dfs():
+                p, r = move
+                node = self.graph.Node(self.graph, self.move(p, r), {(p, r): self})
+                self.future[move] = node
+                value = node.DFS(max_depth-1)
                 if value: return value
             
-
-
+            
         def reconstruct_path(self):
             
             if (self.past == {}):
                 return []
 
-            past_node_pair = next(iter(self.past.items()))
-            move = past_node_pair[0]
-
-            node: self.graph.Node = past_node_pair[1]
+            move, node = next(iter(self.past.items()))
 
             return node.reconstruct_path() + [move]
 
 
-        def BFS(self, max_depth = 10):
-            
+        def BFS(self, queue: list['Graph.Node'] = [], max_depth = 100):
+
             if max_depth == 0: return ["zmanjka globine"]
 
-            if self.future == None: self.future_step()
-            for possible_future in self.future.values():
-                if np.array_equal(possible_future.state, self.graph.finish):
-                    return possible_future.reconstruct_path()
-            for possible_future in self.future.values():
-                possible_future.BFS(max_depth-1)
+            if np.array_equal(self.state, self.graph.start.state): 
+                queue.append(self)
+            
+            next_level_queue: list['Graph.Node'] = []
+            while bool(queue):
+                node: 'Graph.Node' = queue.pop()
+                node.future_step_bfs()
+                next_level_queue.extend(node.future.values())
+
+            for future in next_level_queue:
+                if np.array_equal(future.state, self.graph.finish):
+                    return future.reconstruct_path()
+            
+            return self.BFS(next_level_queue, max_depth-1)                             
 
 
-            
-            
+        def IDS(self, max_depth = 10000):
+
+            for i in range(max_depth):
+                value = self.DFS(i)
+                if value: return value
+                self.graph.clear_visited()
+
 
 
 def get_dimensions(state: np.ndarray) -> dict[str:int]:
@@ -226,12 +265,18 @@ def read_example(file_name: str) -> np.ndarray:
 
 
 examples = read_examples()
+sys.setrecursionlimit(64000)
 
 index = 0
 for example in examples:
     index+=1
-    print(str(index)+" primer")
-    #print("start:\n"+ str(example[0]) + ",\n\n end:\n"+ str(example[1]))
-    test = Graph(start_state=example[0], finish_state=example[1], dimensions=get_dimensions(example[0]))
-    print(test.depth_first_search())
     print()
+    print(str(index)+" primer:")
+    print()
+    print("start:\n"+ str(example[0]) + ",\n\n end:\n"+ str(example[1])) 
+    print()
+    test = Graph(start_state=example[0], finish_state=example[1], dimensions=get_dimensions(example[0]))
+    print(test.breadth_first_search())
+    print()
+    print()
+    
