@@ -38,6 +38,9 @@ class Graph:
     def iterative_deepening_search(self):
         return self.start.IDS()
 
+    def a_star(self):
+        return self.start.a_star()
+
 
     class Node:
     
@@ -124,7 +127,7 @@ class Graph:
                 if  self.valid_move(p, r) and
                     p!=r and
                     not all(x == ' ' for x in self.state[:, p]) and any([x == ' ' for x in self.state[:, r]]) and
-                    all([not np.array_equal(self.move(p, r), visited) for visited in self.graph.visited])
+                    not any([np.array_equal(self.move(p, r), visited) for visited in self.graph.visited])
             ]
 
             return legal_future_paths
@@ -203,11 +206,43 @@ class Graph:
                 self.graph.clear_visited()
 
 
+        def distance(self, state1: np.ndarray, state2: np.ndarray):
+            posititons1: dict[str,tuple] = {state1[y][x]: (x, y) for x in range(self.graph.dimensions['p']) for y in range(self.graph.dimensions['v']) if state1[y][x] != ' '}
+            posititons2: dict[str,tuple] = {state2[y][x]: (x, y) for x in range(self.graph.dimensions['p']) for y in range(self.graph.dimensions['v']) if state2[y][x] != ' '}
+            return sum([abs(posititons2[k][0]-v[0])+abs(posititons2[k][1]-v[1]) for k, v in posititons1.items()])
+
+        
+        def stable_move(self, p: int):
+            stack_correctnes = [True if el1==el2 else el1==' ' for el1, el2 in zip(self.state[:, p][::-1], self.graph.finish[:, p][::-1])]
+            return not all(stack_correctnes)
+                
+
+        def a_star(self, max_depth = 10000):
+            
+            if max_depth == 0: 
+                return
+
+            if np.array_equal(self.state, self.graph.finish):
+                return self.reconstruct_path()
+
+            moves = [move for move in self.future_step_dfs() if self.stable_move(move[0])]
+            sorted_moves = dict(sorted({(p, r): self.distance(self.state, self.move(p, r)) for p, r in moves}.items(), key=lambda item: item[1])).keys()
+            
+            for p, r in sorted_moves:
+                node = self.graph.Node(self.graph, self.move(p, r), {(p, r): self})
+                self.future.append(node)
+                value = node.a_star(max_depth-1)
+                if value: return value
+
+            
+
+
 
 def get_dimensions(state: np.ndarray) -> dict[str:int]:
     p: int = len(state[0])
     n: int = len(np.where(state != ' ')[0])
-    return {'n': n, 'p': p}
+    v: int = len(state)
+    return {'n': n, 'p': p, 'v': v}
 
 
 def show_space_complexity(start_array: np.ndarray, final_array: np.ndarray, n: int = 100):
@@ -276,7 +311,7 @@ for example in examples:
     print("start:\n"+ str(example[0]) + ",\n\n end:\n"+ str(example[1])) 
     print()
     test = Graph(start_state=example[0], finish_state=example[1], dimensions=get_dimensions(example[0]))
-    print(test.breadth_first_search())
+    print(test.a_star())
     print()
     print()
     
